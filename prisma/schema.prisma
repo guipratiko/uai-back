@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  cancelled
+  expired
+}
+
+enum TicketStatus {
+  approved
+  pending
+}
+
+enum PaymentMethod {
+  pix
+  credit_card
+}
+
+model User {
+  id                   String                @id @default(cuid())
+  email                String                @unique
+  password             String
+  fullName             String
+  cpf                  String                @default("")
+  phone                String                @default("")
+  avatarUrl            String?
+  role                 Role                  @default(USER)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  orders               Order[]
+  passwordResetTokens  PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Event {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  title       String
+  subtitle    String
+  category    String
+  date        String
+  endDate     String?
+  time        String
+  venue       String
+  address     String
+  city        String
+  state       String
+  image       String
+  bannerImage String
+  description String       @db.Text
+  highlights  Json
+  organizer   String
+  ageRating   String
+  mapEmbedUrl String       @db.Text
+  lat         Float
+  lng         Float
+  featured    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tickets     TicketTier[]
+}
+
+model TicketTier {
+  id          String  @id @default(cuid())
+  eventId     String
+  event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  description String  @db.Text
+  price       Decimal @db.Decimal(10, 2)
+  available   Int
+  maxPerOrder Int
+  benefits    Json?
+}
+
+model Order {
+  id            String         @id @default(cuid())
+  userId        String?
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  buyerName     String
+  buyerEmail    String
+  buyerCpf      String
+  buyerPhone    String
+  paymentMethod PaymentMethod
+  subtotal      Decimal        @db.Decimal(10, 2)
+  serviceFee    Decimal        @db.Decimal(10, 2)
+  total         Decimal        @db.Decimal(10, 2)
+  status           OrderStatus    @default(pending)
+  asaasCheckoutId  String?        @unique
+  paidAt           DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  items            OrderItem[]
+  issuedTickets    IssuedTicket[]
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  eventId    String
+  eventSlug  String
+  eventTitle String
+  eventDate  String
+  ticketId   String
+  ticketName String
+  unitPrice  Decimal @db.Decimal(10, 2)
+  quantity   Int
+}
+
+model IssuedTicket {
+  id            String       @id @default(cuid())
+  orderId       String
+  order         Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  code          String       @unique
+  eventSlug     String
+  eventTitle    String
+  eventDate     String
+  eventTime     String
+  venue         String
+  city          String
+  state         String
+  ticketName    String
+  lotLabel      String       @default("4º Lote")
+  categoryLabel String       @default("Inteira")
+  unitPrice     Decimal      @db.Decimal(10, 2)
+  feeAmount     Decimal      @db.Decimal(10, 2)
+  holderName    String
+  holderEmail   String
+  purchasedAt   DateTime     @default(now())
+  status        TicketStatus @default(approved)
+  qrValue       String
+}
