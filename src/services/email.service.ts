@@ -4,19 +4,52 @@ import { config } from "../config";
 
 let transporter: Transporter | null = null;
 
+/** Porta 587 = STARTTLS (secure: false). Porta 465 = SSL implícito (secure: true). */
+function resolveSmtpSecure(port: number, envSecure: boolean): boolean {
+  if (port === 465) return true;
+  if (port === 587 || port === 25) return false;
+  return envSecure;
+}
+
+function buildTransportOptions() {
+  const port = config.smtp.port;
+  const secure = resolveSmtpSecure(port, config.smtp.secure);
+  if (config.smtp.secure && (port === 587 || port === 25)) {
+    console.warn(
+      "[email] SMTP_SECURE=true com porta",
+      port,
+      "— usando STARTTLS (secure: false). Defina SMTP_SECURE=false no .env.",
+    );
+  }
+  return {
+    host: config.smtp.host,
+    port,
+    secure,
+    requireTLS: port === 587,
+    auth: {
+      user: config.smtp.user,
+      pass: config.smtp.pass,
+    },
+    tls: {
+      minVersion: "TLSv1.2" as const,
+      servername: config.smtp.host,
+    },
+  };
+}
+
 function getTransporter(): Transporter | null {
   if (!config.smtp.enabled) return null;
   if (!config.smtp.host || !config.smtp.user) return null;
   if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: config.smtp.host,
-      port: config.smtp.port,
-      secure: config.smtp.secure,
-      auth: {
-        user: config.smtp.user,
-        pass: config.smtp.pass,
-      },
+    const options = buildTransportOptions();
+    console.info("[email] SMTP", {
+      host: options.host,
+      port: options.port,
+      secure: options.secure,
+      requireTLS: options.requireTLS,
+      user: options.auth?.user,
     });
+    transporter = nodemailer.createTransport(options);
   }
   return transporter;
 }
@@ -35,14 +68,20 @@ export async function sendMail(input: SendMailInput): Promise<boolean> {
     return false;
   }
 
-  await transport.sendMail({
-    from: `"${config.smtp.fromName}" <${config.smtp.from}>`,
-    to: input.to,
-    subject: input.subject,
-    html: input.html,
-    text: input.text,
-  });
-  return true;
+  try {
+    await transport.sendMail({
+      from: `"${config.smtp.fromName}" <${config.smtp.from}>`,
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    });
+    console.info("[email] Enviado:", input.subject, "→", input.to);
+    return true;
+  } catch (err) {
+    console.error("[email] Falha ao enviar:", input.subject, "→", input.to, err);
+    throw err;
+  }
 }
 
 type TicketEmailItem = {
