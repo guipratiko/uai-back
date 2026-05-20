@@ -62,6 +62,15 @@ async function resolveOrderId(payload: AsaasWebhookPayload): Promise<string | nu
   return order?.id ?? null;
 }
 
+webhookRouter.get("/v3", (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    message: "Webhook Asaas ativo. Use POST com header asaas-access-token.",
+    path: "/webhook/v3",
+    events: ["CHECKOUT_PAID", "CHECKOUT_CANCELED", "CHECKOUT_EXPIRED", "CHECKOUT_CREATED"],
+  });
+});
+
 webhookRouter.post("/v3", async (req, res, next) => {
   const startedAt = Date.now();
   try {
