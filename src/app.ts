@@ -1,5 +1,4 @@
-import cors from "cors";
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import path from "path";
 import { config } from "./config";
 import { errorHandler } from "./middleware/error-handler";
@@ -15,12 +14,23 @@ export function createApp() {
   const app = express();
   ensureUploadDirs();
 
-  app.use(
-    cors({
-      origin: config.corsOrigin,
-      credentials: true,
-    }),
-  );
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    if (origin && config.corsOrigins.includes(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Vary", "Origin");
+    }
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    );
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  });
   app.use(express.json({ limit: "2mb" }));
   app.use("/uploads", express.static(path.resolve(process.cwd(), config.uploadsDir)));
 

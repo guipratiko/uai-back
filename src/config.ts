@@ -6,12 +6,26 @@ function required(name: string): string {
   return value;
 }
 
+function parseCorsOrigins(): string[] {
+  // Use ALLOWED_ORIGINS — alguns painéis injetam CORS_ORIGIN como header HTTP (valor inválido).
+  const raw = process.env.ALLOWED_ORIGINS ?? process.env.CORS_ORIGIN ?? "";
+  const fromList = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const frontend = (process.env.FRONTEND_URL ?? "http://localhost:3000").trim();
+  const origins = new Set(fromList);
+  if (frontend) origins.add(frontend);
+  if (origins.size === 0) origins.add("http://localhost:3000");
+  return [...origins];
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 3333),
   databaseUrl: process.env.DATABASE_URL ?? "",
   jwtSecret: process.env.JWT_SECRET ?? "dev-secret-change-me",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
-  corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
+  corsOrigins: parseCorsOrigins(),
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   adminEmail: (process.env.ADMIN_EMAIL ?? "admin@uaitickets.com.br").toLowerCase(),
   adminPassword: process.env.ADMIN_PASSWORD ?? "U41T1K3t5@!",
