@@ -34,7 +34,22 @@ function buildTransportOptions() {
       minVersion: "TLSv1.2" as const,
       servername: config.smtp.host,
     },
+    logger: config.smtp.debug,
+    debug: config.smtp.debug,
   };
+}
+
+/** Remetente alinhado ao login SMTP (exigido por Umbler e reduz spam). */
+function resolveFromAddress(): string {
+  const user = config.smtp.user.trim();
+  const from = config.smtp.from.trim();
+  if (from && from.toLowerCase() !== user.toLowerCase()) {
+    console.warn(
+      "[email] EMAIL_FROM difere de SMTP_USER — enviando como SMTP_USER para melhor entrega",
+      { emailFrom: from, smtpUser: user },
+    );
+  }
+  return user || from;
 }
 
 function getTransporter(): Transporter | null {
@@ -54,6 +69,17 @@ function getTransporter(): Transporter | null {
   return transporter;
 }
 
+export async function verifySmtpConnection(): Promise<void> {
+  const transport = getTransporter();
+  if (!transport) return;
+  try {
+    await transport.verify();
+    console.info("[email] Conexão SMTP verificada (auth OK)");
+  } catch (err) {
+    console.error("[email] Falha na verificação SMTP:", err);
+  }
+}
+
 type SendMailInput = {
   to: string;
   subject: string;
@@ -68,15 +94,29 @@ export async function sendMail(input: SendMailInput): Promise<boolean> {
     return false;
   }
 
+  const fromEmail = resolveFromAddress();
+
   try {
-    await transport.sendMail({
-      from: `"${config.smtp.fromName}" <${config.smtp.from}>`,
+    const info = await transport.sendMail({
+      from: `"${config.smtp.fromName}" <${fromEmail}>`,
+      replyTo: fromEmail,
       to: input.to,
       subject: input.subject,
       html: input.html,
       text: input.text,
     });
-    console.info("[email] Enviado:", input.subject, "→", input.to);
+    console.info("[email] Handoff SMTP OK", {
+      subject: input.subject,
+      to: input.to,
+      from: fromEmail,
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      response: info.response,
+    });
+    if (info.rejected?.length) {
+      console.error("[email] Destinatário rejeitado pelo servidor SMTP:", info.rejected);
+    }
     return true;
   } catch (err) {
     console.error("[email] Falha ao enviar:", input.subject, "→", input.to, err);
@@ -136,7 +176,7 @@ export async function sendTicketsEmail(
   const text = tickets
     .map(
       (t) =>
-        `${t.eventTitle} - ${t.ticketName}\n${t.eventDate} ${t.eventTime} - ${t.venue}\nCódigo: ${t.code}\n`,
+        `${t.eventTitle} - ${t.ticketName}\n${t.eventDate} ${t.eventTime} - ${t.venue}, ${t.city}\nCódigo: ${t.code}\nQR: ${t.qrValue}\n`,
     )
     .join("\n");
 

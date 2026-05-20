@@ -43,12 +43,13 @@ export const config = {
   },
   smtp: {
     enabled: process.env.SMTP_ENABLED === "true",
+    debug: process.env.SMTP_DEBUG === "true",
     host: process.env.SMTP_HOST ?? "",
     port: Number(process.env.SMTP_PORT ?? 587),
     secure: process.env.SMTP_SECURE === "true",
     user: process.env.SMTP_USER ?? "",
     pass: process.env.SMTP_PASS ?? "",
-    from: process.env.EMAIL_FROM ?? "noreply@uaitickets.com.br",
+    from: process.env.EMAIL_FROM ?? process.env.SMTP_USER ?? "noreply@uaitickets.com.br",
     fromName: process.env.EMAIL_FROM_NAME ?? "Uai Tickets",
   },
 };
