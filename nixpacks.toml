@@ -1,0 +1,6 @@
+# EasyPanel — API + geração de PNG do ingresso (sharp/librsvg precisa de fontes)
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+
+[phases.setup]
+nixPkgs = ["nodejs_22", "fontconfig", "dejavu_fonts"]
