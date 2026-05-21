@@ -127,6 +127,7 @@ webhookRouter.post("/v3", async (req, res, next) => {
               city: t.city,
               ticketName: t.ticketName,
               qrValue: t.qrValue,
+              holderName: t.holderName,
             })),
           )
             .then((sent) =>

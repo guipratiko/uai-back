@@ -1,5 +1,10 @@
 import nodemailer from "nodemailer";
+import type { Attachment } from "nodemailer/lib/mailer";
 import type { Transporter } from "nodemailer";
+import {
+  buildTicketEmailAssets,
+  type TicketEmailData,
+} from "../lib/ticket-email-image";
 import { config } from "../config";
 
 let transporter: Transporter | null = null;
@@ -85,6 +90,7 @@ type SendMailInput = {
   subject: string;
   html: string;
   text?: string;
+  attachments?: Attachment[];
 };
 
 export async function sendMail(input: SendMailInput): Promise<boolean> {
@@ -104,6 +110,7 @@ export async function sendMail(input: SendMailInput): Promise<boolean> {
       subject: input.subject,
       html: input.html,
       text: input.text,
+      attachments: input.attachments,
     });
     console.info("[email] Handoff SMTP OK", {
       subject: input.subject,
@@ -124,16 +131,7 @@ export async function sendMail(input: SendMailInput): Promise<boolean> {
   }
 }
 
-type TicketEmailItem = {
-  code: string;
-  eventTitle: string;
-  eventDate: string;
-  eventTime: string;
-  venue: string;
-  city: string;
-  ticketName: string;
-  qrValue: string;
-};
+export type TicketEmailItem = TicketEmailData;
 
 export async function sendTicketsEmail(
   to: string,
@@ -141,50 +139,50 @@ export async function sendTicketsEmail(
   orderId: string,
   tickets: TicketEmailItem[],
 ) {
-  const ticketsHtml = tickets
-    .map(
-      (t) => `
-      <tr>
-        <td style="padding:12px;border-bottom:1px solid #eee;">
-          <strong>${t.eventTitle}</strong><br/>
-          <span style="color:#666;font-size:14px;">
-            ${t.ticketName} · ${t.eventDate} às ${t.eventTime}<br/>
-            ${t.venue}, ${t.city}
-          </span><br/>
-          <span style="font-family:monospace;font-size:13px;color:#7c3aed;">
-            Código: ${t.code}
-          </span>
-        </td>
-      </tr>`,
-    )
-    .join("");
+  const ticketData: TicketEmailData[] = tickets.map((t) => ({
+    ...t,
+    holderName: t.holderName || buyerName,
+  }));
+
+  const { ticketBlocksHtml, attachments } = await buildTicketEmailAssets(ticketData);
 
   const html = `
-    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#1e293b;">
-      <h1 style="color:#7c3aed;">Seus ingressos — Uai Tickets</h1>
-      <p>Olá, <strong>${buyerName}</strong>!</p>
-      <p>Seu pedido <strong>${orderId}</strong> foi confirmado. Apresente os códigos abaixo na entrada:</p>
-      <table style="width:100%;border-collapse:collapse;margin:24px 0;">
-        ${ticketsHtml}
-      </table>
-      <p style="font-size:14px;color:#64748b;">
-        Você também pode acessar seus ingressos em
-        <a href="${config.frontendUrl}/conta/ingressos" style="color:#7c3aed;">Minha conta</a>.
-      </p>
+    <div style="margin:0;padding:24px 12px;background:#f3ebf9;font-family:Arial,Helvetica,sans-serif;">
+      <div style="max-width:640px;margin:0 auto;">
+        <p style="margin:0 0 8px;font-size:14px;color:#8b3ab8;font-weight:600;text-align:center;">Uai Tickets</p>
+        <h1 style="margin:0 0 12px;font-size:22px;color:#2d1045;text-align:center;">Seus ingressos</h1>
+        <p style="margin:0 0 24px;font-size:15px;color:#475569;text-align:center;line-height:1.5;">
+          Olá, <strong style="color:#1e293b;">${buyerName}</strong>!<br/>
+          Pedido <strong style="color:#6d2d96;">${orderId}</strong> confirmado.
+          Apresente cada ingresso abaixo na entrada do evento.
+        </p>
+        ${ticketBlocksHtml}
+        <p style="margin:24px 0 0;font-size:13px;color:#64748b;text-align:center;">
+          Também disponível em
+          <a href="${config.frontendUrl}/conta/ingressos" style="color:#8b3ab8;font-weight:600;">Minha conta</a>
+        </p>
+      </div>
     </div>`;
 
-  const text = tickets
+  const text = ticketData
     .map(
       (t) =>
-        `${t.eventTitle} - ${t.ticketName}\n${t.eventDate} ${t.eventTime} - ${t.venue}, ${t.city}\nCódigo: ${t.code}\nQR: ${t.qrValue}\n`,
+        `${t.eventTitle} - ${t.ticketName}\n${t.eventDate} ${t.eventTime}\n${t.venue}, ${t.city}\nTitular: ${t.holderName}\nCódigo: ${t.code}\nQR: ${t.qrValue}\n`,
     )
-    .join("\n");
+    .join("\n---\n");
+
+  const nodemailerAttachments: Attachment[] = attachments.map((a) => ({
+    filename: a.filename,
+    content: a.content,
+    cid: a.cid,
+  }));
 
   return sendMail({
     to,
     subject: `Ingressos confirmados — pedido ${orderId}`,
     html,
     text: `Olá ${buyerName},\n\nPedido ${orderId}:\n\n${text}`,
+    attachments: nodemailerAttachments,
   });
 }
 

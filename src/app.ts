@@ -4,6 +4,7 @@ import { config } from "./config";
 import { errorHandler } from "./middleware/error-handler";
 import { ensureUploadDirs } from "./lib/upload";
 import { adminRouter } from "./routes/admin.routes";
+import { organizersAdminRouter } from "./routes/organizers.admin.routes";
 import { authRouter } from "./routes/auth.routes";
 import { checkoutRouter } from "./routes/checkout.routes";
 import { eventsRouter } from "./routes/events.routes";
@@ -43,6 +44,7 @@ export function createApp() {
   app.use("/api/checkout", checkoutRouter);
   app.use("/api/orders", ordersRouter);
   app.use("/api/admin", adminRouter);
+  app.use("/api/admin/organizers", organizersAdminRouter);
   app.use("/webhook", webhookRouter);
 
   app.use(errorHandler);

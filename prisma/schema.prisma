@@ -77,10 +77,35 @@ model Event {
   mapEmbedUrl String       @db.Text
   lat         Float
   lng         Float
-  featured    Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  tickets     TicketTier[]
+  featured          Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  tickets           TicketTier[]
+  organizerEvents   OrganizerEvent[]
+}
+
+model Organizer {
+  id        String           @id @default(cuid())
+  email     String           @unique
+  password  String
+  name      String
+  active    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  events    OrganizerEvent[]
+  checkIns  IssuedTicket[]   @relation("CheckedInBy")
+}
+
+model OrganizerEvent {
+  id          String    @id @default(cuid())
+  organizerId String
+  eventId     String
+  organizer   Organizer @relation(fields: [organizerId], references: [id], onDelete: Cascade)
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([organizerId, eventId])
+  @@index([eventId])
 }
 
 model TicketTier {
@@ -131,11 +156,12 @@ model OrderItem {
 }
 
 model IssuedTicket {
-  id            String       @id @default(cuid())
-  orderId       String
-  order         Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  code          String       @unique
-  eventSlug     String
+  id                     String       @id @default(cuid())
+  orderId                String
+  order                  Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  code                   String       @unique
+  eventId                String       @default("")
+  eventSlug              String
   eventTitle    String
   eventDate     String
   eventTime     String
@@ -150,6 +176,12 @@ model IssuedTicket {
   holderName    String
   holderEmail   String
   purchasedAt   DateTime     @default(now())
-  status        TicketStatus @default(approved)
-  qrValue       String
+  status                 TicketStatus @default(approved)
+  qrValue                String       @unique
+  checkedInAt            DateTime?
+  checkedInByOrganizerId String?
+  checkedInByOrganizer   Organizer?   @relation("CheckedInBy", fields: [checkedInByOrganizerId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@index([eventSlug])
 }

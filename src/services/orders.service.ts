@@ -220,6 +220,7 @@ export async function confirmPaidOrder(orderId: string) {
           data: {
             orderId: order.id,
             code,
+            eventId: item.eventId,
             eventSlug: item.eventSlug,
             eventTitle: item.eventTitle,
             eventDate: item.eventDate,

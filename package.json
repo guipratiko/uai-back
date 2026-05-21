@@ -10,7 +10,9 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:setup": "prisma db push && tsx prisma/seed.ts"
+    "db:setup": "prisma db push && tsx prisma/seed.ts",
+    "email:test": "tsx scripts/test-email.ts",
+    "email:test-ticket": "tsx scripts/test-ticket-email.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
@@ -21,6 +23,8 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.5",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.34.5",
     "zod": "^3.25.76"
   },
   "prisma": {
@@ -34,6 +38,7 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^22.15.32",
     "@types/nodemailer": "^6.4.17",
+    "@types/qrcode": "^1.5.6",
     "prisma": "^6.19.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
