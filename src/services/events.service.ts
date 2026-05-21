@@ -66,6 +66,7 @@ type EventInput = {
   featured?: boolean;
   buyerFeePercent?: number | null;
   platformFeePercent?: number | null;
+  allowTransfer?: boolean;
   tickets: TicketInput[];
 };
 
@@ -102,6 +103,7 @@ export async function createEvent(input: EventInput) {
       featured: input.featured ?? false,
       buyerFeePercent: parseFeePercentInput(input.buyerFeePercent),
       platformFeePercent: parseFeePercentInput(input.platformFeePercent),
+      allowTransfer: input.allowTransfer ?? true,
       tickets: {
         create: input.tickets.map((t) => ({
           name: t.name,
@@ -179,6 +181,7 @@ export async function updateEvent(id: string, input: Partial<EventInput>) {
       ...(input.platformFeePercent !== undefined
         ? { platformFeePercent: parseFeePercentInput(input.platformFeePercent) }
         : {}),
+      ...(input.allowTransfer !== undefined ? { allowTransfer: input.allowTransfer } : {}),
     },
     include: eventInclude,
   });

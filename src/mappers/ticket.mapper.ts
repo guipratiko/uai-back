@@ -1,6 +1,10 @@
 import type { IssuedTicket } from "@prisma/client";
 
-export function mapIssuedTicket(t: IssuedTicket) {
+export type TicketMapperExtras = {
+  allowTransfer?: boolean;
+};
+
+export function mapIssuedTicket(t: IssuedTicket, extras?: TicketMapperExtras) {
   return {
     id: t.id,
     orderId: t.orderId,
@@ -22,5 +26,10 @@ export function mapIssuedTicket(t: IssuedTicket) {
     purchasedAt: t.purchasedAt.toISOString(),
     status: t.status,
     qrValue: t.qrValue,
+    source: t.source,
+    transferCount: t.transferCount,
+    transferredAt: t.transferredAt?.toISOString() ?? null,
+    checkedInAt: t.checkedInAt?.toISOString() ?? null,
+    allowTransfer: extras?.allowTransfer ?? true,
   };
 }

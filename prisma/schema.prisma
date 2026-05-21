@@ -47,6 +47,7 @@ model User {
   updatedAt            DateTime              @updatedAt
   orders               Order[]
   passwordResetTokens  PasswordResetToken[]
+  ticketTransfersInitiated TicketTransfer[] @relation("TransferInitiatedBy")
 }
 
 model PasswordResetToken {
@@ -87,6 +88,8 @@ model Event {
   buyerFeePercent      Decimal?          @db.Decimal(5, 2)
   /// % da bilheteria retido do produtor (só relatório). Null = 0%.
   platformFeePercent   Decimal?          @db.Decimal(5, 2)
+  /// Permite transferência de titularidade (1x por ingresso vendido).
+  allowTransfer        Boolean           @default(true)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
   tickets              TicketTier[]
@@ -238,8 +241,28 @@ model IssuedTicket {
   checkedInByOrganizer   Organizer?   @relation("CheckedInBy", fields: [checkedInByOrganizerId], references: [id], onDelete: SetNull)
   createdByProducerId    String?
   createdByProducer      Producer?    @relation("CreatedByProducer", fields: [createdByProducerId], references: [id], onDelete: SetNull)
+  transferCount          Int          @default(0)
+  transferredAt          DateTime?
+  transfers              TicketTransfer[]
 
   @@index([eventId])
   @@index([eventSlug])
   @@index([createdByProducerId])
+  @@index([holderEmail])
+}
+
+model TicketTransfer {
+  id                  String       @id @default(cuid())
+  ticketId            String
+  ticket              IssuedTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromName            String
+  fromEmail           String
+  toName              String
+  toEmail             String
+  transferredByUserId String?
+  transferredByUser   User?        @relation("TransferInitiatedBy", fields: [transferredByUserId], references: [id], onDelete: SetNull)
+  createdAt           DateTime     @default(now())
+
+  @@index([ticketId])
+  @@index([toEmail])
 }

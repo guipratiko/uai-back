@@ -186,6 +186,62 @@ export async function sendTicketsEmail(
   });
 }
 
+export async function sendTransferTicketEmail(input: {
+  to: string;
+  holderName: string;
+  previousHolderName: string;
+  ticket: TicketEmailItem;
+}) {
+  const ticketData: TicketEmailData[] = [
+    {
+      ...input.ticket,
+      holderName: input.holderName,
+    },
+  ];
+
+  const { ticketBlocksHtml, attachments } = await buildTicketEmailAssets(ticketData);
+  const fromEmail = resolveFromAddress();
+
+  const transport = getTransporter();
+  if (!transport) {
+    console.info("[email] SMTP off — transferência não notificada para", input.to);
+    return false;
+  }
+
+  const html = `
+    <div style="margin:0;padding:24px 12px;background:#f3ebf9;font-family:Arial,Helvetica,sans-serif;">
+      <div style="max-width:640px;margin:0 auto;">
+        <p style="margin:0 0 8px;font-size:14px;color:#8b3ab8;font-weight:600;text-align:center;">Uai Tickets</p>
+        <h1 style="margin:0 0 12px;font-size:22px;color:#2d1045;text-align:center;">Ingresso transferido para você</h1>
+        <p style="margin:0 0 24px;font-size:15px;color:#475569;text-align:center;line-height:1.5;">
+          Olá, <strong style="color:#1e293b;">${input.holderName}</strong>!<br/>
+          <strong style="color:#6d2d96;">${input.previousHolderName}</strong> transferiu um ingresso para o seu e-mail.
+          O QR Code abaixo é o único válido na entrada (o anterior foi invalidado).
+        </p>
+        ${ticketBlocksHtml}
+        <p style="margin:24px 0 0;font-size:13px;color:#64748b;text-align:center;">
+          Acesse em
+          <a href="${config.frontendUrl}/conta/ingressos" style="color:#8b3ab8;font-weight:600;">Meus ingressos</a>
+          com este e-mail.
+        </p>
+      </div>
+    </div>`;
+
+  const text = `${input.ticket.eventTitle}\nTitular: ${input.holderName}\nCódigo: ${input.ticket.code}\nQR: ${input.ticket.qrValue}`;
+
+  return sendMail({
+    to: input.to,
+    subject: `Ingresso transferido — ${input.ticket.eventTitle}`,
+    html,
+    text: `Olá ${input.holderName},\n\n${input.previousHolderName} transferiu um ingresso para você.\n\n${text}`,
+    attachments: attachments.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      cid: a.cid,
+    })),
+  });
+}
+
 export async function sendPasswordResetEmail(to: string, name: string, token: string) {
   const resetUrl = `${config.frontendUrl}/redefinir-senha?token=${token}`;
   const hours = config.passwordResetExpiresHours;

@@ -199,7 +199,7 @@ export async function confirmPaidOrder(orderId: string) {
     const tickets = await prisma.issuedTicket.findMany({ where: { orderId } });
     return {
       order: mapOrder(existing),
-      tickets: tickets.map(mapIssuedTicket),
+      tickets: tickets.map((t) => mapIssuedTicket(t)),
       alreadyConfirmed: true,
     };
   }
@@ -318,12 +318,27 @@ export async function getTicketsByEmail(email: string) {
     where: { holderEmail: email.trim().toLowerCase() },
     orderBy: { purchasedAt: "desc" },
   });
-  return tickets.map(mapIssuedTicket);
+
+  const eventIds = [...new Set(tickets.map((t) => t.eventId).filter(Boolean))];
+  const events =
+    eventIds.length > 0
+      ? await prisma.event.findMany({
+          where: { id: { in: eventIds } },
+          select: { id: true, allowTransfer: true },
+        })
+      : [];
+  const allowByEvent = new Map(events.map((e) => [e.id, e.allowTransfer]));
+
+  return tickets.map((t) =>
+    mapIssuedTicket(t, {
+      allowTransfer: t.eventId ? (allowByEvent.get(t.eventId) ?? true) : true,
+    }),
+  );
 }
 
 export async function getAllTicketsForAdmin() {
   const tickets = await prisma.issuedTicket.findMany({
     orderBy: { purchasedAt: "desc" },
   });
-  return tickets.map(mapIssuedTicket);
+  return tickets.map((t) => mapIssuedTicket(t));
 }

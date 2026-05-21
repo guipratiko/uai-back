@@ -40,6 +40,7 @@ const eventSchema = z.object({
   featured: z.boolean().optional(),
   buyerFeePercent: z.number().min(0).max(100).nullable().optional(),
   platformFeePercent: z.number().min(0).max(100).nullable().optional(),
+  allowTransfer: z.boolean().optional(),
   tickets: z.array(ticketSchema).min(1),
 });
 

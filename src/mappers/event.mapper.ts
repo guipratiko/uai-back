@@ -41,6 +41,7 @@ export function mapEvent(event: EventWithTickets) {
       event.buyerFeePercent != null ? Number(event.buyerFeePercent) : null,
     platformFeePercent:
       event.platformFeePercent != null ? Number(event.platformFeePercent) : null,
+    allowTransfer: event.allowTransfer,
     tickets: event.tickets.map(mapTicket),
   };
 }
