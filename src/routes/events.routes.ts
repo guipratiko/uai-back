@@ -15,6 +15,7 @@ const ticketSchema = z.object({
   available: z.number().int().min(0),
   maxPerOrder: z.number().int().min(1),
   benefits: z.array(z.string()).optional(),
+  lotChainId: z.string().nullable().optional(),
 });
 
 const eventSchema = z.object({

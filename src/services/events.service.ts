@@ -57,6 +57,8 @@ type TicketInput = {
   available: number;
   maxPerOrder: number;
   benefits?: string[];
+  /** Mesmo valor em vários ingressos = virada de lote. Vazio = VIP/Pista em paralelo. */
+  lotChainId?: string | null;
 };
 
 type EventInput = {
@@ -129,14 +131,20 @@ export async function createEvent(input: EventInput) {
           maxPerOrder: t.maxPerOrder,
           benefits: t.benefits ?? Prisma.JsonNull,
           sortOrder: index,
-          status: index === 0 ? "active" : "scheduled",
+          lotChainId: t.lotChainId?.trim() || null,
+          status: "active",
         })),
       },
     },
     include: eventInclude,
   });
 
-  return mapEvent(event);
+  await initTierStatusesForEvent(event.id);
+  const refreshed = await prisma.event.findUnique({
+    where: { id: event.id },
+    include: eventInclude,
+  });
+  return mapEvent(refreshed!);
 }
 
 export async function updateEvent(id: string, input: Partial<EventInput>) {
@@ -166,7 +174,8 @@ export async function updateEvent(id: string, input: Partial<EventInput>) {
         maxPerOrder: t.maxPerOrder,
         benefits: t.benefits ?? Prisma.JsonNull,
         sortOrder: index,
-        status: index === 0 ? "active" : "scheduled",
+        lotChainId: t.lotChainId?.trim() || null,
+        status: "active",
       })),
     });
     await initTierStatusesForEvent(id);

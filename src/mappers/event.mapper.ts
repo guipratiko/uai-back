@@ -12,6 +12,7 @@ export function mapTicket(t: TicketTier) {
     maxPerOrder: t.maxPerOrder,
     benefits: (t.benefits as string[] | null) ?? undefined,
     sortOrder: t.sortOrder,
+    lotChainId: t.lotChainId,
     status: t.status,
     activateAt: t.activateAt?.toISOString() ?? null,
     maxSales: t.maxSales,

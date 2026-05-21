@@ -178,7 +178,9 @@ model TicketTier {
   maxPerOrder          Int
   benefits             Json?
   sortOrder            Int              @default(0)
-  status               TicketTierStatus @default(scheduled)
+  /// Vazio = tipo em paralelo (VIP, Pista). Mesmo valor em vários tiers = cadeia de virada 1º→2º lote.
+  lotChainId           String?
+  status               TicketTierStatus @default(active)
   /// Virada por data — o que ocorrer primeiro com maxSales.
   activateAt           DateTime?
   /// Limite de vendas (e opcionalmente cortesias) para virar o próximo lote.
