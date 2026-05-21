@@ -34,6 +34,12 @@ enum TicketSource {
   courtesy
 }
 
+enum TicketTierStatus {
+  scheduled
+  active
+  closed
+}
+
 model User {
   id                   String                @id @default(cuid())
   email                String                @unique
@@ -162,15 +168,27 @@ model ProducerCourtesyLog {
 }
 
 model TicketTier {
-  id          String  @id @default(cuid())
-  eventId     String
-  event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  name        String
-  description String  @db.Text
-  price       Decimal @db.Decimal(10, 2)
-  available   Int
-  maxPerOrder Int
-  benefits    Json?
+  id                   String           @id @default(cuid())
+  eventId              String
+  event                Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name                 String
+  description          String           @db.Text
+  price                Decimal          @db.Decimal(10, 2)
+  available            Int
+  maxPerOrder          Int
+  benefits             Json?
+  sortOrder            Int              @default(0)
+  status               TicketTierStatus @default(scheduled)
+  /// Virada por data — o que ocorrer primeiro com maxSales.
+  activateAt           DateTime?
+  /// Limite de vendas (e opcionalmente cortesias) para virar o próximo lote.
+  maxSales             Int?
+  soldCount            Int              @default(0)
+  /// Se true, cortesias emitidas neste lote entram no soldCount para maxSales.
+  countCourtesyInCap   Boolean          @default(false)
+
+  @@index([eventId, status])
+  @@index([eventId, sortOrder])
 }
 
 model Order {

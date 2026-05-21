@@ -6,6 +6,7 @@ import {
 } from "../lib/event-fees";
 import { prisma } from "../lib/prisma";
 import { mapIssuedTicket } from "../mappers/ticket.mapper";
+import { incrementTierSoldCount } from "./lot-rollover.service";
 
 export type CartItemInput = {
   eventId: string;
@@ -95,6 +96,9 @@ async function validateCartItems(items: CartItemInput[]) {
       where: { id: item.ticketId, eventId: item.eventId },
     });
     if (!tier) throw new AppError(400, `Ingresso não encontrado: ${item.ticketName}`);
+    if (tier.status !== "active") {
+      throw new AppError(400, `${item.ticketName} não está à venda no momento`);
+    }
     if (tier.available < item.quantity) {
       throw new AppError(400, `Estoque insuficiente para ${item.ticketName}`);
     }
@@ -223,12 +227,13 @@ export async function confirmPaidOrder(orderId: string) {
     ticketCount > 0 ? Number(existing.serviceFee) / ticketCount : 0;
   const buyerEmail = existing.buyerEmail;
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     for (const item of items) {
       const updated = await tx.ticketTier.updateMany({
         where: {
           id: item.ticketId,
           eventId: item.eventId,
+          status: "active",
           available: { gte: item.quantity },
         },
         data: { available: { decrement: item.quantity } },
@@ -247,6 +252,7 @@ export async function confirmPaidOrder(orderId: string) {
     const issuedTickets = [];
     for (const item of items) {
       const event = await tx.event.findUnique({ where: { id: item.eventId } });
+      const tier = await tx.ticketTier.findUnique({ where: { id: item.ticketId } });
       for (let n = 0; n < item.quantity; n++) {
         const code = generateTicketCode();
         const ticket = await tx.issuedTicket.create({
@@ -262,6 +268,7 @@ export async function confirmPaidOrder(orderId: string) {
             city: event?.city ?? "",
             state: event?.state ?? "",
             ticketName: item.ticketName,
+            lotLabel: tier?.name ?? item.ticketName,
             unitPrice: item.unitPrice,
             feeAmount: Math.round(feePerTicket * 100) / 100,
             holderName: existing.buyerName,
@@ -280,6 +287,12 @@ export async function confirmPaidOrder(orderId: string) {
       alreadyConfirmed: false,
     };
   });
+
+  for (const item of items) {
+    await incrementTierSoldCount(item.ticketId, item.quantity, "sale");
+  }
+
+  return result;
 }
 
 export async function cancelPendingOrder(orderId: string, status: "cancelled" | "expired" = "cancelled") {

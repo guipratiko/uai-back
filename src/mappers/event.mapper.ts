@@ -11,6 +11,12 @@ export function mapTicket(t: TicketTier) {
     available: t.available,
     maxPerOrder: t.maxPerOrder,
     benefits: (t.benefits as string[] | null) ?? undefined,
+    sortOrder: t.sortOrder,
+    status: t.status,
+    activateAt: t.activateAt?.toISOString() ?? null,
+    maxSales: t.maxSales,
+    soldCount: t.soldCount,
+    countCourtesyInCap: t.countCourtesyInCap,
   };
 }
 
@@ -42,6 +48,8 @@ export function mapEvent(event: EventWithTickets) {
     platformFeePercent:
       event.platformFeePercent != null ? Number(event.platformFeePercent) : null,
     allowTransfer: event.allowTransfer,
-    tickets: event.tickets.map(mapTicket),
+    tickets: event.tickets
+      .map(mapTicket)
+      .sort((a, b) => a.sortOrder - b.sortOrder),
   };
 }

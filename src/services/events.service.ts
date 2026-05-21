@@ -4,6 +4,10 @@ import { prisma } from "../lib/prisma";
 import { uniqueSlug } from "../lib/slug";
 import { parseFeePercentInput } from "../lib/event-fees";
 import { mapEvent } from "../mappers/event.mapper";
+import {
+  evaluateEventLotRollover,
+  initTierStatusesForEvent,
+} from "./lot-rollover.service";
 
 const eventInclude = { tickets: true };
 
@@ -12,7 +16,14 @@ export async function listEvents() {
     include: eventInclude,
     orderBy: { date: "asc" },
   });
-  return events.map(mapEvent);
+  for (const ev of events) {
+    await evaluateEventLotRollover(ev.id);
+  }
+  const refreshed = await prisma.event.findMany({
+    include: eventInclude,
+    orderBy: { date: "asc" },
+  });
+  return refreshed.map(mapEvent);
 }
 
 export async function getEventBySlug(slug: string) {
@@ -21,7 +32,12 @@ export async function getEventBySlug(slug: string) {
     include: eventInclude,
   });
   if (!event) throw new AppError(404, "Evento não encontrado");
-  return mapEvent(event);
+  await evaluateEventLotRollover(event.id);
+  const refreshed = await prisma.event.findUnique({
+    where: { slug },
+    include: eventInclude,
+  });
+  return mapEvent(refreshed!);
 }
 
 export async function getEventById(id: string) {
@@ -105,13 +121,15 @@ export async function createEvent(input: EventInput) {
       platformFeePercent: parseFeePercentInput(input.platformFeePercent),
       allowTransfer: input.allowTransfer ?? true,
       tickets: {
-        create: input.tickets.map((t) => ({
+        create: input.tickets.map((t, index) => ({
           name: t.name,
           description: t.description,
           price: t.price,
           available: t.available,
           maxPerOrder: t.maxPerOrder,
           benefits: t.benefits ?? Prisma.JsonNull,
+          sortOrder: index,
+          status: index === 0 ? "active" : "scheduled",
         })),
       },
     },
@@ -139,7 +157,7 @@ export async function updateEvent(id: string, input: Partial<EventInput>) {
   if (input.tickets) {
     await prisma.ticketTier.deleteMany({ where: { eventId: id } });
     await prisma.ticketTier.createMany({
-      data: input.tickets.map((t) => ({
+      data: input.tickets.map((t, index) => ({
         eventId: id,
         name: t.name,
         description: t.description,
@@ -147,8 +165,11 @@ export async function updateEvent(id: string, input: Partial<EventInput>) {
         available: t.available,
         maxPerOrder: t.maxPerOrder,
         benefits: t.benefits ?? Prisma.JsonNull,
+        sortOrder: index,
+        status: index === 0 ? "active" : "scheduled",
       })),
     });
+    await initTierStatusesForEvent(id);
   }
 
   const event = await prisma.event.update({
