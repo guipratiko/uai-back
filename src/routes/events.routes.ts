@@ -38,6 +38,8 @@ const eventSchema = z.object({
   mapEmbedUrl: z.string(),
   coordinates: coordinatesSchema,
   featured: z.boolean().optional(),
+  buyerFeePercent: z.number().min(0).max(100).nullable().optional(),
+  platformFeePercent: z.number().min(0).max(100).nullable().optional(),
   tickets: z.array(ticketSchema).min(1),
 });
 

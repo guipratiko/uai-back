@@ -1,6 +1,9 @@
 import { OrderStatus, PaymentMethod } from "@prisma/client";
-import { config } from "../config";
 import { AppError } from "../lib/errors";
+import {
+  resolveBuyerFeePercent,
+  resolvePlatformFeePercent,
+} from "../lib/event-fees";
 import { prisma } from "../lib/prisma";
 import { mapIssuedTicket } from "../mappers/ticket.mapper";
 
@@ -39,6 +42,7 @@ function mapOrder(order: {
   paymentMethod: PaymentMethod;
   subtotal: unknown;
   serviceFee: unknown;
+  platformFee: unknown;
   total: unknown;
   status: OrderStatus;
   createdAt: Date;
@@ -75,6 +79,7 @@ function mapOrder(order: {
     paymentMethod: order.paymentMethod,
     subtotal: Number(order.subtotal),
     serviceFee: Number(order.serviceFee),
+    platformFee: Number(order.platformFee),
     total: Number(order.total),
     createdAt: order.createdAt.toISOString(),
     paidAt: order.paidAt?.toISOString() ?? null,
@@ -99,11 +104,38 @@ async function validateCartItems(items: CartItemInput[]) {
   }
 }
 
-function calcTotals(items: CartItemInput[]) {
-  const subtotal = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-  const serviceFee = Math.round(subtotal * config.serviceFeeRate * 100) / 100;
-  const total = subtotal + serviceFee;
-  return { subtotal, serviceFee, total };
+async function calcTotals(items: CartItemInput[]) {
+  const eventIds = [...new Set(items.map((i) => i.eventId))];
+  const events = await prisma.event.findMany({
+    where: { id: { in: eventIds } },
+    select: { id: true, buyerFeePercent: true, platformFeePercent: true },
+  });
+  const feesByEvent = new Map(events.map((e) => [e.id, e]));
+
+  let subtotal = 0;
+  let serviceFee = 0;
+  let platformFee = 0;
+
+  for (const item of items) {
+    const ev = feesByEvent.get(item.eventId);
+    const buyerPct = resolveBuyerFeePercent(
+      ev?.buyerFeePercent != null ? Number(ev.buyerFeePercent) : null,
+    );
+    const platformPct = resolvePlatformFeePercent(
+      ev?.platformFeePercent != null ? Number(ev.platformFeePercent) : null,
+    );
+    const line = item.unitPrice * item.quantity;
+    subtotal += line;
+    serviceFee += line * (buyerPct / 100);
+    platformFee += line * (platformPct / 100);
+  }
+
+  subtotal = Math.round(subtotal * 100) / 100;
+  serviceFee = Math.round(serviceFee * 100) / 100;
+  platformFee = Math.round(platformFee * 100) / 100;
+  const total = Math.round((subtotal + serviceFee) * 100) / 100;
+
+  return { subtotal, serviceFee, platformFee, total };
 }
 
 export async function createPendingOrder(
@@ -113,7 +145,7 @@ export async function createPendingOrder(
   userId?: string,
 ) {
   await validateCartItems(items);
-  const { subtotal, serviceFee, total } = calcTotals(items);
+  const { subtotal, serviceFee, platformFee, total } = await calcTotals(items);
   const orderId = generateOrderId();
   const buyerEmail = buyer.email.trim().toLowerCase();
 
@@ -128,6 +160,7 @@ export async function createPendingOrder(
       paymentMethod,
       subtotal,
       serviceFee,
+      platformFee,
       total,
       status: "pending",
       items: {

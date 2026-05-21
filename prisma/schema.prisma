@@ -29,6 +29,11 @@ enum PaymentMethod {
   credit_card
 }
 
+enum TicketSource {
+  sale
+  courtesy
+}
+
 model User {
   id                   String                @id @default(cuid())
   email                String                @unique
@@ -77,11 +82,16 @@ model Event {
   mapEmbedUrl String       @db.Text
   lat         Float
   lng         Float
-  featured          Boolean           @default(false)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  tickets           TicketTier[]
-  organizerEvents   OrganizerEvent[]
+  featured             Boolean           @default(false)
+  /// % cobrado do comprador (checkout). Null = 10% (padrão).
+  buyerFeePercent      Decimal?          @db.Decimal(5, 2)
+  /// % da bilheteria retido do produtor (só relatório). Null = 0%.
+  platformFeePercent   Decimal?          @db.Decimal(5, 2)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  tickets              TicketTier[]
+  organizerEvents      OrganizerEvent[]
+  producerEvents       ProducerEvent[]
 }
 
 model Organizer {
@@ -108,6 +118,46 @@ model OrganizerEvent {
   @@index([eventId])
 }
 
+model Producer {
+  id             String               @id @default(cuid())
+  email          String               @unique
+  password       String
+  name           String
+  active         Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  events         ProducerEvent[]
+  courtesyLogs   ProducerCourtesyLog[]
+  createdTickets IssuedTicket[]       @relation("CreatedByProducer")
+  courtesyOrders Order[]              @relation("CourtesyOrdersBy")
+}
+
+model ProducerEvent {
+  id         String   @id @default(cuid())
+  producerId String
+  eventId    String
+  producer   Producer @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([producerId, eventId])
+  @@index([eventId])
+}
+
+model ProducerCourtesyLog {
+  id           String   @id @default(cuid())
+  producerId   String
+  eventId      String
+  ticketTierId String
+  ticketName   String
+  quantity     Int
+  createdAt    DateTime @default(now())
+  producer     Producer @relation(fields: [producerId], references: [id], onDelete: Cascade)
+
+  @@index([producerId])
+  @@index([eventId])
+}
+
 model TicketTier {
   id          String  @id @default(cuid())
   eventId     String
@@ -131,14 +181,18 @@ model Order {
   paymentMethod PaymentMethod
   subtotal      Decimal        @db.Decimal(10, 2)
   serviceFee    Decimal        @db.Decimal(10, 2)
+  platformFee   Decimal        @default(0) @db.Decimal(10, 2)
   total         Decimal        @db.Decimal(10, 2)
-  status           OrderStatus    @default(pending)
-  asaasCheckoutId  String?        @unique
-  paidAt           DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  items            OrderItem[]
-  issuedTickets    IssuedTicket[]
+  source               TicketSource   @default(sale)
+  status               OrderStatus    @default(pending)
+  asaasCheckoutId      String?        @unique
+  paidAt               DateTime?
+  createdByProducerId  String?
+  createdByProducer    Producer?      @relation("CourtesyOrdersBy", fields: [createdByProducerId], references: [id], onDelete: SetNull)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  items                OrderItem[]
+  issuedTickets        IssuedTicket[]
 }
 
 model OrderItem {
@@ -176,12 +230,16 @@ model IssuedTicket {
   holderName    String
   holderEmail   String
   purchasedAt   DateTime     @default(now())
+  source                 TicketSource @default(sale)
   status                 TicketStatus @default(approved)
   qrValue                String       @unique
   checkedInAt            DateTime?
   checkedInByOrganizerId String?
   checkedInByOrganizer   Organizer?   @relation("CheckedInBy", fields: [checkedInByOrganizerId], references: [id], onDelete: SetNull)
+  createdByProducerId    String?
+  createdByProducer      Producer?    @relation("CreatedByProducer", fields: [createdByProducerId], references: [id], onDelete: SetNull)
 
   @@index([eventId])
   @@index([eventSlug])
+  @@index([createdByProducerId])
 }

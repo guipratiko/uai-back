@@ -37,6 +37,10 @@ export function mapEvent(event: EventWithTickets) {
     mapEmbedUrl: event.mapEmbedUrl,
     coordinates: { lat: event.lat, lng: event.lng },
     featured: event.featured,
+    buyerFeePercent:
+      event.buyerFeePercent != null ? Number(event.buyerFeePercent) : null,
+    platformFeePercent:
+      event.platformFeePercent != null ? Number(event.platformFeePercent) : null,
     tickets: event.tickets.map(mapTicket),
   };
 }

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
 import { uniqueSlug } from "../lib/slug";
+import { parseFeePercentInput } from "../lib/event-fees";
 import { mapEvent } from "../mappers/event.mapper";
 
 const eventInclude = { tickets: true };
@@ -63,6 +64,8 @@ type EventInput = {
   mapEmbedUrl: string;
   coordinates: { lat: number; lng: number };
   featured?: boolean;
+  buyerFeePercent?: number | null;
+  platformFeePercent?: number | null;
   tickets: TicketInput[];
 };
 
@@ -97,6 +100,8 @@ export async function createEvent(input: EventInput) {
       lat: input.coordinates.lat,
       lng: input.coordinates.lng,
       featured: input.featured ?? false,
+      buyerFeePercent: parseFeePercentInput(input.buyerFeePercent),
+      platformFeePercent: parseFeePercentInput(input.platformFeePercent),
       tickets: {
         create: input.tickets.map((t) => ({
           name: t.name,
@@ -168,6 +173,12 @@ export async function updateEvent(id: string, input: Partial<EventInput>) {
       lat: input.coordinates?.lat,
       lng: input.coordinates?.lng,
       featured: input.featured,
+      ...(input.buyerFeePercent !== undefined
+        ? { buyerFeePercent: parseFeePercentInput(input.buyerFeePercent) }
+        : {}),
+      ...(input.platformFeePercent !== undefined
+        ? { platformFeePercent: parseFeePercentInput(input.platformFeePercent) }
+        : {}),
     },
     include: eventInclude,
   });
