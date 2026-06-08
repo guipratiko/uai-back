@@ -12,16 +12,24 @@ const loginSchema = z.object({
   password: z.string().min(4),
 });
 
+const genderSchema = z.enum(["male", "female", "unspecified"]);
+
 const registerSchema = loginSchema.extend({
   fullName: z.string().min(2),
   cpf: z.string().optional(),
   phone: z.string().optional(),
+  gender: genderSchema.optional().default("unspecified"),
+  city: z.string().min(2),
+  state: z.string().length(2),
 });
 
 const profileSchema = z.object({
   fullName: z.string().min(2).optional(),
   cpf: z.string().optional(),
   phone: z.string().optional(),
+  gender: genderSchema.optional(),
+  city: z.string().min(2).optional(),
+  state: z.string().length(2).optional(),
 });
 
 const forgotPasswordSchema = z.object({
@@ -46,13 +54,13 @@ authRouter.post("/login", async (req, res, next) => {
 authRouter.post("/register", async (req, res, next) => {
   try {
     const body = registerSchema.parse(req.body);
-    const result = await authService.register(
-      body.email,
-      body.password,
-      body.fullName,
-      body.cpf,
-      body.phone,
-    );
+    const result = await authService.register(body.email, body.password, body.fullName, {
+      cpf: body.cpf,
+      phone: body.phone,
+      gender: body.gender,
+      city: body.city,
+      state: body.state,
+    });
     res.json(result);
   } catch (e) {
     next(e);

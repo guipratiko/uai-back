@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { Role } from "@prisma/client";
+import { Role, type UserGender } from "@prisma/client";
 import { config } from "../config";
 import { AppError } from "../lib/errors";
 import { signToken } from "../lib/jwt";
@@ -25,8 +25,13 @@ export async function register(
   email: string,
   password: string,
   fullName: string,
-  cpf = "",
-  phone = "",
+  profile: {
+    cpf?: string;
+    phone?: string;
+    gender?: UserGender;
+    city: string;
+    state: string;
+  },
 ) {
   const normalized = email.trim().toLowerCase();
   const exists = await prisma.user.findUnique({ where: { email: normalized } });
@@ -38,8 +43,11 @@ export async function register(
       email: normalized,
       password: hash,
       fullName: fullName.trim(),
-      cpf,
-      phone,
+      cpf: profile.cpf ?? "",
+      phone: profile.phone ?? "",
+      gender: profile.gender ?? "unspecified",
+      city: profile.city.trim(),
+      state: profile.state.trim().toUpperCase(),
       role: Role.USER,
     },
   });
@@ -56,7 +64,14 @@ export async function getMe(userId: string) {
 
 export async function updateProfile(
   userId: string,
-  data: { fullName?: string; cpf?: string; phone?: string },
+  data: {
+    fullName?: string;
+    cpf?: string;
+    phone?: string;
+    gender?: UserGender;
+    city?: string;
+    state?: string;
+  },
 ) {
   const user = await prisma.user.update({
     where: { id: userId },
@@ -64,6 +79,9 @@ export async function updateProfile(
       fullName: data.fullName?.trim(),
       cpf: data.cpf,
       phone: data.phone,
+      gender: data.gender,
+      city: data.city?.trim(),
+      state: data.state?.trim().toUpperCase(),
     },
   });
   return publicUser(user);
@@ -176,6 +194,9 @@ function publicUser(user: {
   fullName: string;
   cpf: string;
   phone: string;
+  gender: UserGender;
+  city: string;
+  state: string;
   avatarUrl: string | null;
   role: Role;
 }) {
@@ -185,6 +206,9 @@ function publicUser(user: {
     fullName: user.fullName,
     cpf: user.cpf,
     phone: user.phone,
+    gender: user.gender,
+    city: user.city,
+    state: user.state,
     avatarUrl: avatarAbsoluteUrl(user.avatarUrl),
     role: user.role,
   };

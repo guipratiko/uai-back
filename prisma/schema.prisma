@@ -12,6 +12,12 @@ enum Role {
   ADMIN
 }
 
+enum UserGender {
+  male
+  female
+  unspecified
+}
+
 enum OrderStatus {
   pending
   confirmed
@@ -47,6 +53,9 @@ model User {
   fullName             String
   cpf                  String                @default("")
   phone                String                @default("")
+  gender               UserGender            @default(unspecified)
+  city                 String                @default("")
+  state                String                @default("")
   avatarUrl            String?
   role                 Role                  @default(USER)
   createdAt            DateTime              @default(now())
