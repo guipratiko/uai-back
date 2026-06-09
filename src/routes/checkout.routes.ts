@@ -4,6 +4,7 @@ import { PaymentMethod } from "@prisma/client";
 import * as authService from "../services/auth.service";
 import * as checkoutService from "../services/checkout.service";
 import * as couponService from "../services/coupon.service";
+import * as commissionerService from "../services/commissioner.service";
 import { authOptional, type AuthRequest } from "../middleware/auth";
 
 export const checkoutRouter = Router();
@@ -39,6 +40,27 @@ const validateSchema = z.object({
   items: z.array(cartItemSchema).min(1),
   buyerEmail: z.string().email().optional(),
   buyerCpf: z.string().optional(),
+});
+
+const commissionerValidateSchema = z.object({
+  code: z.string().min(1),
+  items: z.array(cartItemSchema).min(1),
+  buyerEmail: z.string().email().optional(),
+  buyerCpf: z.string().optional(),
+});
+
+checkoutRouter.post("/commissioners/validate", async (req, res, next) => {
+  try {
+    const body = commissionerValidateSchema.parse(req.body);
+    const result = await commissionerService.validateCommissionerForCart(
+      body.code,
+      body.items,
+      { email: body.buyerEmail, cpf: body.buyerCpf },
+    );
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
 });
 
 checkoutRouter.post("/coupons/validate", async (req, res, next) => {

@@ -56,6 +56,36 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
+ALTER TABLE "EventCommissioner" ADD COLUMN IF NOT EXISTS "validFrom" TIMESTAMP(3);
+ALTER TABLE "EventCommissioner" ADD COLUMN IF NOT EXISTS "discountPercent" DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE "EventCommissioner" ADD COLUMN IF NOT EXISTS "maxUses" INTEGER NOT NULL DEFAULT 100;
+ALTER TABLE "EventCommissioner" ADD COLUMN IF NOT EXISTS "usedCount" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "EventCommissioner" ADD COLUMN IF NOT EXISTS "maxUsesPerBuyer" INTEGER NOT NULL DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS "EventCommissionerTicketTier" (
+  "id" TEXT NOT NULL,
+  "commissionerId" TEXT NOT NULL,
+  "ticketTierId" TEXT NOT NULL,
+  CONSTRAINT "EventCommissionerTicketTier_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "EventCommissionerTicketTier_commissionerId_ticketTierId_key"
+  ON "EventCommissionerTicketTier"("commissionerId", "ticketTierId");
+CREATE INDEX IF NOT EXISTS "EventCommissionerTicketTier_ticketTierId_idx"
+  ON "EventCommissionerTicketTier"("ticketTierId");
+
+DO $$ BEGIN
+  ALTER TABLE "EventCommissionerTicketTier"
+    ADD CONSTRAINT "EventCommissionerTicketTier_commissionerId_fkey"
+    FOREIGN KEY ("commissionerId") REFERENCES "EventCommissioner"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "EventCommissionerTicketTier"
+    ADD CONSTRAINT "EventCommissionerTicketTier_ticketTierId_fkey"
+    FOREIGN KEY ("ticketTierId") REFERENCES "TicketTier"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "commissionerId" TEXT;
 
 DO $$ BEGIN

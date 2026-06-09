@@ -227,6 +227,7 @@ model TicketTier {
   /// Se true, cortesias emitidas neste lote entram no soldCount para maxSales.
   countCourtesyInCap   Boolean          @default(false)
   couponTiers          DiscountCouponTicketTier[]
+  commissionerTiers    EventCommissionerTicketTier[]
 
   @@index([eventId, status])
   @@index([eventId, sortOrder])
@@ -377,16 +378,33 @@ model EventCommissioner {
   user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   code                 String
   active               Boolean                  @default(true)
+  validFrom            DateTime?
   validUntil           DateTime?
+  discountPercent      Decimal                  @default(0) @db.Decimal(5, 2)
+  maxUses              Int                      @default(100)
+  usedCount            Int                      @default(0)
+  maxUsesPerBuyer      Int                      @default(1)
   courtesyMode         CommissionerCourtesyMode   @default(none)
   courtesyGoal         Int?
   courtesyTicketTierId String?
   courtesyIssuedAt     DateTime?
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
+  discountTicketTiers  EventCommissionerTicketTier[]
   orders               Order[]
 
   @@unique([eventId, code])
   @@unique([eventId, userId])
   @@index([producerId])
+}
+
+model EventCommissionerTicketTier {
+  id             String            @id @default(cuid())
+  commissionerId String
+  commissioner   EventCommissioner @relation(fields: [commissionerId], references: [id], onDelete: Cascade)
+  ticketTierId   String
+  ticketTier     TicketTier        @relation(fields: [ticketTierId], references: [id], onDelete: Cascade)
+
+  @@unique([commissionerId, ticketTierId])
+  @@index([ticketTierId])
 }

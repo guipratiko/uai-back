@@ -11,23 +11,26 @@ export async function startCheckoutSession(
   couponCode?: string,
   commissionerCode?: string,
 ) {
-  const { order, serviceFee, couponMeta } = await ordersService.createPendingOrder(
-    items,
-    buyer,
-    paymentMethod,
-    userId,
-    couponCode,
-    commissionerCode,
-  );
+  const { order, serviceFee, couponMeta, commissionerMeta } =
+    await ordersService.createPendingOrder(
+      items,
+      buyer,
+      paymentMethod,
+      userId,
+      couponCode,
+      commissionerCode,
+    );
+
+  const discountMeta = couponMeta ?? commissionerMeta;
 
   const asaasItems = order.items.map((i) => {
     let value = i.unitPrice;
     if (
-      couponMeta &&
-      couponMeta.discountPercent > 0 &&
-      couponMeta.eligibleTicketIds.includes(i.ticketId)
+      discountMeta &&
+      discountMeta.discountPercent > 0 &&
+      discountMeta.eligibleTicketIds.includes(i.ticketId)
     ) {
-      value = discountedUnitPrice(i.unitPrice, couponMeta.discountPercent);
+      value = discountedUnitPrice(i.unitPrice, discountMeta.discountPercent);
     }
     return {
       name: `${i.eventTitle} — ${i.ticketName}`,

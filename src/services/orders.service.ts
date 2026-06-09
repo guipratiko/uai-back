@@ -5,7 +5,10 @@ import {
   resolvePlatformFeePercent,
 } from "../lib/event-fees";
 import { resolveCouponForCheckout } from "./coupon.service";
-import { resolveCommissionerId, processCommissionerAfterOrderConfirmed } from "./commissioner.service";
+import {
+  resolveCommissionerForCheckout,
+  processCommissionerAfterOrderConfirmed,
+} from "./commissioner.service";
 import { prisma } from "../lib/prisma";
 import { mapIssuedTicket } from "../mappers/ticket.mapper";
 import { incrementTierSoldCount } from "./lot-rollover.service";
@@ -181,7 +184,16 @@ export async function createPendingOrder(
   let discountPercent = 0;
 
   const trimmedCoupon = couponCode?.trim();
+  const trimmedCommissioner = commissionerCode?.trim();
+
+  if (trimmedCoupon && trimmedCommissioner) {
+    throw new AppError(400, "Use apenas cupom ou link de comissário, não os dois");
+  }
+
+  let commissionerId: string | null = null;
+  let commissionerEligibleTicketIds: string[] = [];
   let totals;
+
   if (trimmedCoupon) {
     const resolved = await resolveCouponForCheckout(trimmedCoupon, items, buyer);
     totals = resolved.totals;
@@ -189,13 +201,22 @@ export async function createPendingOrder(
     storedCouponCode = resolved.coupon.code;
     eligibleTicketIds = resolved.eligibleTicketIds;
     discountPercent = totals.discountPercent;
+  } else if (trimmedCommissioner) {
+    const resolved = await resolveCommissionerForCheckout(trimmedCommissioner, items, buyer);
+    commissionerId = resolved.commissionerId;
+    if (resolved.totals && resolved.discountPercent > 0) {
+      totals = resolved.totals;
+      commissionerEligibleTicketIds = resolved.eligibleTicketIds;
+      discountPercent = resolved.discountPercent;
+    } else {
+      totals = await calcTotals(items);
+    }
   } else {
     totals = await calcTotals(items);
   }
 
   const orderId = generateOrderId();
   const buyerEmail = buyer.email.trim().toLowerCase();
-  const commissionerId = await resolveCommissionerId(commissionerCode, items, buyer);
 
   const order = await prisma.order.create({
     data: {
@@ -238,6 +259,10 @@ export async function createPendingOrder(
     couponMeta: trimmedCoupon
       ? { couponId, eligibleTicketIds, discountPercent }
       : null,
+    commissionerMeta:
+      trimmedCommissioner && commissionerId && discountPercent > 0
+        ? { commissionerId, eligibleTicketIds: commissionerEligibleTicketIds, discountPercent }
+        : null,
   };
 }
 
@@ -311,6 +336,13 @@ export async function confirmPaidOrder(orderId: string) {
       });
     }
 
+    if (existing.commissionerId && Number(existing.discountAmount) > 0) {
+      await tx.eventCommissioner.update({
+        where: { id: existing.commissionerId },
+        data: { usedCount: { increment: 1 } },
+      });
+    }
+
     const issuedTickets = [];
     for (const item of items) {
       const event = await tx.event.findUnique({ where: { id: item.eventId } });
@@ -358,7 +390,7 @@ export async function confirmPaidOrder(orderId: string) {
     try {
       await processCommissionerAfterOrderConfirmed(orderId);
     } catch (e) {
-      console.error("[commissioner] falha cortesia por meta", orderId, e);
+      console.error("[commissioner] falha pós-confirmação", orderId, e);
     }
   }
 
