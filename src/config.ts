@@ -20,6 +20,24 @@ function parseCorsOrigins(): string[] {
   return [...origins];
 }
 
+function resolveApiPublicUrl(): string {
+  const explicit = process.env.API_PUBLIC_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const frontend = process.env.FRONTEND_URL?.trim() ?? "";
+  if (frontend.startsWith("https://") && !/localhost|127\.0\.0\.1/i.test(frontend)) {
+    try {
+      const u = new URL(frontend);
+      const host = u.hostname.replace(/^www\./, "");
+      return `${u.protocol}//api.${host}`.replace(/\/$/, "");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return "http://localhost:3333";
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 3333),
   databaseUrl: process.env.DATABASE_URL ?? "",
@@ -30,7 +48,7 @@ export const config = {
   adminEmail: (process.env.ADMIN_EMAIL ?? "admin@uaitickets.com.br").toLowerCase(),
   adminPassword: process.env.ADMIN_PASSWORD ?? "U41T1K3t5@!",
   serviceFeeRate: Number(process.env.SERVICE_FEE_RATE ?? 0.1),
-  apiPublicUrl: process.env.API_PUBLIC_URL ?? "http://localhost:3333",
+  apiPublicUrl: resolveApiPublicUrl(),
   uploadsDir: process.env.UPLOADS_DIR ?? "uploads",
   passwordResetExpiresHours: Number(process.env.PASSWORD_RESET_EXPIRES_HOURS ?? 1),
   asaas: {

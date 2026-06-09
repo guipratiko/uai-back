@@ -11,6 +11,7 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:clean": "tsx scripts/clean-database.ts",
     "db:setup": "prisma db push && tsx prisma/seed.ts",
     "email:test": "tsx scripts/test-email.ts",
     "email:test-ticket": "tsx scripts/test-ticket-email.ts"
