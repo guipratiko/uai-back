@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { buildSalesByDay, buildSalesByMonth, type SaleLine } from "../lib/sales-periods";
 
 const PAYMENT_LABELS: Record<string, string> = {
   pix: "Pix",
@@ -8,7 +9,18 @@ const PAYMENT_LABELS: Record<string, string> = {
 export async function getAdminMetrics() {
   const [tickets, eventsCount] = await Promise.all([
     prisma.issuedTicket.findMany({
-      include: { order: true },
+      where: {
+        source: "sale",
+        order: { status: "confirmed", paidAt: { not: null } },
+      },
+      select: {
+        eventSlug: true,
+        eventTitle: true,
+        unitPrice: true,
+        feeAmount: true,
+        orderId: true,
+        order: { select: { paidAt: true, paymentMethod: true } },
+      },
     }),
     prisma.event.count(),
   ]);
@@ -35,27 +47,16 @@ export async function getAdminMetrics() {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 8);
 
-  const dayMap = new Map<string, { count: number; revenue: number }>();
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    dayMap.set(key, { count: 0, revenue: 0 });
-  }
-  for (const t of tickets) {
-    const key = t.purchasedAt.toISOString().slice(0, 10);
-    if (dayMap.has(key)) {
-      const cur = dayMap.get(key)!;
-      cur.count += 1;
-      cur.revenue += Number(t.unitPrice) + Number(t.feeAmount);
-    }
-  }
+  const saleLines: SaleLine[] = tickets
+    .filter((t) => t.order.paidAt)
+    .map((t) => ({
+      paidAt: t.order.paidAt!,
+      tickets: 1,
+      revenue: Number(t.unitPrice) + Number(t.feeAmount),
+    }));
 
-  const salesByDay = Array.from(dayMap.entries()).map(([key, data]) => {
-    const d = new Date(key);
-    const label = d.toLocaleDateString("pt-BR", { weekday: "short" }).slice(0, 3);
-    return { label, count: data.count, revenue: data.revenue };
-  });
+  const salesByDay = buildSalesByDay(saleLines, 30);
+  const salesByMonth = buildSalesByMonth(saleLines, 12);
 
   const paymentMap = new Map<string, number>();
   for (const t of tickets) {
@@ -69,12 +70,13 @@ export async function getAdminMetrics() {
   }));
 
   return {
-    totalRevenue,
+    totalRevenue: Math.round(totalRevenue * 100) / 100,
     ticketsSold: tickets.length,
     ordersCount: orderIds.size,
     eventsActive: eventsCount,
     revenueByEvent,
     salesByDay,
+    salesByMonth,
     paymentSplit,
   };
 }
