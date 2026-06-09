@@ -4,6 +4,7 @@ import {
   resolveBuyerFeePercent,
   resolvePlatformFeePercent,
 } from "../lib/event-fees";
+import { resolveCouponForCheckout } from "./coupon.service";
 import { prisma } from "../lib/prisma";
 import { mapIssuedTicket } from "../mappers/ticket.mapper";
 import { incrementTierSoldCount } from "./lot-rollover.service";
@@ -44,6 +45,9 @@ function mapOrder(order: {
   subtotal: unknown;
   serviceFee: unknown;
   platformFee: unknown;
+  discountAmount: unknown;
+  discountPercent: unknown;
+  couponCode: string | null;
   total: unknown;
   status: OrderStatus;
   createdAt: Date;
@@ -81,6 +85,10 @@ function mapOrder(order: {
     subtotal: Number(order.subtotal),
     serviceFee: Number(order.serviceFee),
     platformFee: Number(order.platformFee),
+    discountAmount: Number(order.discountAmount ?? 0),
+    discountPercent:
+      order.discountPercent != null ? Number(order.discountPercent) : null,
+    couponCode: order.couponCode,
     total: Number(order.total),
     createdAt: order.createdAt.toISOString(),
     paidAt: order.paidAt?.toISOString() ?? null,
@@ -108,13 +116,19 @@ async function validateCartItems(items: CartItemInput[]) {
   }
 }
 
-async function calcTotals(items: CartItemInput[]) {
+async function calcTotals(items: CartItemInput[], couponCode?: string, buyer?: BuyerInput) {
   const eventIds = [...new Set(items.map((i) => i.eventId))];
   const events = await prisma.event.findMany({
     where: { id: { in: eventIds } },
     select: { id: true, buyerFeePercent: true, platformFeePercent: true },
   });
   const feesByEvent = new Map(events.map((e) => [e.id, e]));
+
+  if (couponCode?.trim()) {
+    if (!buyer) throw new AppError(400, "Dados do comprador são obrigatórios com cupom");
+    const { totals } = await resolveCouponForCheckout(couponCode, items, buyer);
+    return totals;
+  }
 
   let subtotal = 0;
   let serviceFee = 0;
@@ -139,7 +153,15 @@ async function calcTotals(items: CartItemInput[]) {
   platformFee = Math.round(platformFee * 100) / 100;
   const total = Math.round((subtotal + serviceFee) * 100) / 100;
 
-  return { subtotal, serviceFee, platformFee, total };
+  return {
+    subtotal,
+    discountAmount: 0,
+    discountPercent: 0,
+    serviceFee,
+    platformFee,
+    total,
+    eligibleSubtotal: 0,
+  };
 }
 
 export async function createPendingOrder(
@@ -147,9 +169,28 @@ export async function createPendingOrder(
   buyer: BuyerInput,
   paymentMethod: PaymentMethod,
   userId?: string,
+  couponCode?: string,
 ) {
   await validateCartItems(items);
-  const { subtotal, serviceFee, platformFee, total } = await calcTotals(items);
+
+  let couponId: string | undefined;
+  let storedCouponCode: string | undefined;
+  let eligibleTicketIds: string[] = [];
+  let discountPercent = 0;
+
+  const trimmedCoupon = couponCode?.trim();
+  let totals;
+  if (trimmedCoupon) {
+    const resolved = await resolveCouponForCheckout(trimmedCoupon, items, buyer);
+    totals = resolved.totals;
+    couponId = resolved.coupon.id;
+    storedCouponCode = resolved.coupon.code;
+    eligibleTicketIds = resolved.eligibleTicketIds;
+    discountPercent = totals.discountPercent;
+  } else {
+    totals = await calcTotals(items);
+  }
+
   const orderId = generateOrderId();
   const buyerEmail = buyer.email.trim().toLowerCase();
 
@@ -162,10 +203,14 @@ export async function createPendingOrder(
       buyerCpf: buyer.cpf.replace(/\D/g, ""),
       buyerPhone: buyer.phone,
       paymentMethod,
-      subtotal,
-      serviceFee,
-      platformFee,
-      total,
+      subtotal: totals.subtotal,
+      serviceFee: totals.serviceFee,
+      platformFee: totals.platformFee,
+      discountAmount: totals.discountAmount,
+      discountPercent: totals.discountPercent > 0 ? totals.discountPercent : null,
+      couponId,
+      couponCode: storedCouponCode,
+      total: totals.total,
       status: "pending",
       items: {
         create: items.map((i) => ({
@@ -183,7 +228,13 @@ export async function createPendingOrder(
     include: { items: true },
   });
 
-  return { order: mapOrder(order), serviceFee };
+  return {
+    order: mapOrder(order),
+    serviceFee: totals.serviceFee,
+    couponMeta: trimmedCoupon
+      ? { couponId, eligibleTicketIds, discountPercent }
+      : null,
+  };
 }
 
 export async function attachAsaasCheckout(orderId: string, asaasCheckoutId: string) {
@@ -248,6 +299,13 @@ export async function confirmPaidOrder(orderId: string) {
       data: { status: "confirmed", paidAt: new Date() },
       include: { items: true },
     });
+
+    if (existing.couponId) {
+      await tx.discountCoupon.update({
+        where: { id: existing.couponId },
+        data: { usedCount: { increment: 1 } },
+      });
+    }
 
     const issuedTickets = [];
     for (const item of items) {

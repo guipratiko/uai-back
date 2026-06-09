@@ -11,6 +11,9 @@ import { checkoutRouter } from "./routes/checkout.routes";
 import { eventsRouter } from "./routes/events.routes";
 import { ordersRouter } from "./routes/orders.routes";
 import { webhookRouter } from "./routes/webhook.routes";
+import { heroSlidesRouter } from "./routes/hero-slides.routes";
+import { heroSlidesAdminRouter } from "./routes/hero-slides.admin.routes";
+import { couponsAdminRouter } from "./routes/coupons.admin.routes";
 
 export function createApp() {
   const app = express();
@@ -42,11 +45,14 @@ export function createApp() {
 
   app.use("/api/auth", authRouter);
   app.use("/api/events", eventsRouter);
+  app.use("/api/hero-slides", heroSlidesRouter);
   app.use("/api/checkout", checkoutRouter);
   app.use("/api/orders", ordersRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/admin/organizers", organizersAdminRouter);
   app.use("/api/admin/producers", producersAdminRouter);
+  app.use("/api/admin/hero-slides", heroSlidesAdminRouter);
+  app.use("/api/admin/coupons", couponsAdminRouter);
   app.use("/webhook", webhookRouter);
 
   app.use(errorHandler);

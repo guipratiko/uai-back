@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PaymentMethod } from "@prisma/client";
 import * as authService from "../services/auth.service";
 import * as checkoutService from "../services/checkout.service";
+import * as couponService from "../services/coupon.service";
 import { authOptional, type AuthRequest } from "../middleware/auth";
 
 export const checkoutRouter = Router();
@@ -29,6 +30,27 @@ const sessionSchema = z.object({
   items: z.array(cartItemSchema).min(1),
   buyer: buyerSchema,
   paymentMethod: z.enum(["pix", "credit_card"]),
+  couponCode: z.string().optional(),
+});
+
+const validateSchema = z.object({
+  code: z.string().min(1),
+  items: z.array(cartItemSchema).min(1),
+  buyerEmail: z.string().email().optional(),
+  buyerCpf: z.string().optional(),
+});
+
+checkoutRouter.post("/coupons/validate", async (req, res, next) => {
+  try {
+    const body = validateSchema.parse(req.body);
+    const result = await couponService.validateCouponForCart(body.code, body.items, {
+      email: body.buyerEmail,
+      cpf: body.buyerCpf,
+    });
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
 });
 
 checkoutRouter.post("/session", authOptional, async (req: AuthRequest, res, next) => {
@@ -39,6 +61,7 @@ checkoutRouter.post("/session", authOptional, async (req: AuthRequest, res, next
       body.buyer,
       body.paymentMethod as PaymentMethod,
       req.user?.sub,
+      body.couponCode,
     );
     await authService.upsertFromBuyer(body.buyer);
     res.status(201).json(result);
