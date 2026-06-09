@@ -46,6 +46,12 @@ enum TicketTierStatus {
   closed
 }
 
+enum CommissionerCourtesyMode {
+  none
+  immediate
+  on_goal
+}
+
 model User {
   id                   String                @id @default(cuid())
   email                String                @unique
@@ -63,6 +69,7 @@ model User {
   orders               Order[]
   passwordResetTokens  PasswordResetToken[]
   ticketTransfersInitiated TicketTransfer[] @relation("TransferInitiatedBy")
+  eventCommissioners   EventCommissioner[]
 }
 
 model PasswordResetToken {
@@ -112,6 +119,7 @@ model Event {
   producerEvents       ProducerEvent[]
   heroSlides           HeroSlide[]
   discountCoupons      DiscountCoupon[]
+  eventCommissioners   EventCommissioner[]
 }
 
 model HeroSlide {
@@ -168,6 +176,7 @@ model Producer {
   createdTickets IssuedTicket[]       @relation("CreatedByProducer")
   courtesyOrders Order[]              @relation("CourtesyOrdersBy")
   discountCoupons DiscountCoupon[]
+  eventCommissioners EventCommissioner[]
 }
 
 model ProducerEvent {
@@ -247,6 +256,8 @@ model Order {
   paidAt               DateTime?
   createdByProducerId  String?
   createdByProducer    Producer?      @relation("CourtesyOrdersBy", fields: [createdByProducerId], references: [id], onDelete: SetNull)
+  commissionerId       String?
+  commissioner         EventCommissioner? @relation(fields: [commissionerId], references: [id], onDelete: SetNull)
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
   items                OrderItem[]
@@ -354,4 +365,28 @@ model DiscountCouponTicketTier {
 
   @@unique([couponId, ticketTierId])
   @@index([ticketTierId])
+}
+
+model EventCommissioner {
+  id                   String                   @id @default(cuid())
+  eventId              String
+  event                Event                    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  producerId           String
+  producer             Producer                 @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code                 String
+  active               Boolean                  @default(true)
+  validUntil           DateTime?
+  courtesyMode         CommissionerCourtesyMode   @default(none)
+  courtesyGoal         Int?
+  courtesyTicketTierId String?
+  courtesyIssuedAt     DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  orders               Order[]
+
+  @@unique([eventId, code])
+  @@unique([eventId, userId])
+  @@index([producerId])
 }

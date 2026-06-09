@@ -9,6 +9,7 @@ export async function startCheckoutSession(
   paymentMethod: PaymentMethod,
   userId?: string,
   couponCode?: string,
+  commissionerCode?: string,
 ) {
   const { order, serviceFee, couponMeta } = await ordersService.createPendingOrder(
     items,
@@ -16,6 +17,7 @@ export async function startCheckoutSession(
     paymentMethod,
     userId,
     couponCode,
+    commissionerCode,
   );
 
   const asaasItems = order.items.map((i) => {

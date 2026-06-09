@@ -31,6 +31,7 @@ const sessionSchema = z.object({
   buyer: buyerSchema,
   paymentMethod: z.enum(["pix", "credit_card"]),
   couponCode: z.string().optional(),
+  commissionerCode: z.string().optional(),
 });
 
 const validateSchema = z.object({
@@ -62,6 +63,7 @@ checkoutRouter.post("/session", authOptional, async (req: AuthRequest, res, next
       body.paymentMethod as PaymentMethod,
       req.user?.sub,
       body.couponCode,
+      body.commissionerCode,
     );
     await authService.upsertFromBuyer(body.buyer);
     res.status(201).json(result);

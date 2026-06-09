@@ -5,6 +5,7 @@ import {
   resolvePlatformFeePercent,
 } from "../lib/event-fees";
 import { resolveCouponForCheckout } from "./coupon.service";
+import { resolveCommissionerId, processCommissionerAfterOrderConfirmed } from "./commissioner.service";
 import { prisma } from "../lib/prisma";
 import { mapIssuedTicket } from "../mappers/ticket.mapper";
 import { incrementTierSoldCount } from "./lot-rollover.service";
@@ -170,6 +171,7 @@ export async function createPendingOrder(
   paymentMethod: PaymentMethod,
   userId?: string,
   couponCode?: string,
+  commissionerCode?: string,
 ) {
   await validateCartItems(items);
 
@@ -193,6 +195,7 @@ export async function createPendingOrder(
 
   const orderId = generateOrderId();
   const buyerEmail = buyer.email.trim().toLowerCase();
+  const commissionerId = await resolveCommissionerId(commissionerCode, items, buyer);
 
   const order = await prisma.order.create({
     data: {
@@ -210,6 +213,7 @@ export async function createPendingOrder(
       discountPercent: totals.discountPercent > 0 ? totals.discountPercent : null,
       couponId,
       couponCode: storedCouponCode,
+      commissionerId,
       total: totals.total,
       status: "pending",
       items: {
@@ -348,6 +352,14 @@ export async function confirmPaidOrder(orderId: string) {
 
   for (const item of items) {
     await incrementTierSoldCount(item.ticketId, item.quantity, "sale");
+  }
+
+  if (existing.commissionerId) {
+    try {
+      await processCommissionerAfterOrderConfirmed(orderId);
+    } catch (e) {
+      console.error("[commissioner] falha cortesia por meta", orderId, e);
+    }
   }
 
   return result;
