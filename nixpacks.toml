@@ -4,3 +4,6 @@ NIXPACKS_NODE_VERSION = "22"
 
 [phases.setup]
 nixPkgs = ["nodejs_22", "fontconfig", "dejavu_fonts"]
+
+[phases.build]
+cmds = ["npx prisma generate", "npm run build"]
